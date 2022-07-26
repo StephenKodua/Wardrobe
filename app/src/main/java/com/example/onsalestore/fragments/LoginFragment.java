@@ -5,6 +5,7 @@ import android.os.Bundle;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 
 import com.facebook.FacebookSdk;
@@ -17,6 +18,7 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.Toast;
 
 import com.example.onsale.R;
 import com.example.onsalestore.activities.MainActivity;
@@ -31,15 +33,19 @@ import com.google.android.gms.tasks.Task;
 import com.parse.LogInCallback;
 import com.parse.ParseException;
 import com.parse.ParseUser;
+import com.parse.SignUpCallback;
 
 import org.json.JSONException;
+
+import java.util.Objects;
 
 
 public class LoginFragment extends Fragment {
 
     //Main login contents
-    private Button btnLaunchLogin;
-    private EditText etLoginUsername, etLoginPassword;
+    private Button btnMainLogin;
+    private EditText etLoginUsername;
+    private EditText etLoginPassword;
 
     //Google login contents
     private GoogleSignInOptions googleSignInOptions;
@@ -54,16 +60,19 @@ public class LoginFragment extends Fragment {
 
         View view = inflater.inflate(R.layout.fragment_login, container, false);
 
+        ((AppCompatActivity) getActivity()).getSupportActionBar().hide();
+
         //Main login contents
         etLoginUsername = view.findViewById(R.id.etLoginUsername);
         etLoginPassword = view.findViewById(R.id.etLoginPassword);
-        btnLaunchLogin = view.findViewById(R.id.btnLaunchLogin);
+        btnMainLogin = view.findViewById(R.id.btnMainLogin);
 
 
         //Google login contents
         ivGoogleLogin = view.findViewById(R.id.ivGoogleLogin);
         googleSignInOptions = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestEmail()
+                .requestId()
                 .build();
         googleSignInClient = GoogleSignIn.getClient(getContext(), googleSignInOptions);
 
@@ -77,7 +86,7 @@ public class LoginFragment extends Fragment {
         });
 
         //sign in with parse
-        btnLaunchLogin.setOnClickListener(new View.OnClickListener() {
+        btnMainLogin.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 String username = etLoginUsername.getText().toString();
@@ -91,17 +100,12 @@ public class LoginFragment extends Fragment {
     @Override
     public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        // Result returned from launching the Intent from GoogleSignInClient.getSignInIntent(...);
         if (requestCode == REQUEST_CODE) {
-            // The Task returned from this call is always completed, no need to attach
-            // a listener
             Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
             handleSignInResult(task);
         }
     }
 
-//GOOGLE SIGN IN FLOW
-//fire sign in intent to start sign-in flow
     private void googleSignIn() {
         Intent googleSignInIntent = googleSignInClient.getSignInIntent();
         startActivityForResult(googleSignInIntent, REQUEST_CODE);
@@ -109,16 +113,28 @@ public class LoginFragment extends Fragment {
 
     private void handleSignInResult(Task<GoogleSignInAccount> completedTask) {
         try {
-            //object contains information about the signed-in user, such as the user's name.
             GoogleSignInAccount account = completedTask.getResult(ApiException.class);
-            goToMainActivity();
+            Log.i("LoginFragment", "Login Success!");
+            Toast.makeText(getContext(), "Success", Toast.LENGTH_LONG).show();
+            ParseUser newUser = new ParseUser();
+            newUser.signUpInBackground(new SignUpCallback() {
+                @Override
+                public void done(ParseException e) {
+                    if (e != null) {
+                        goToMainActivity();
+                    } else {
+                        newUser.setUsername(account.getDisplayName());
+                        newUser.setPassword(account.getFamilyName());
+                        goToMainActivity();
+                    }
+                }
+            });
 
         } catch (ApiException e) {
             Log.w("LoginFragment", "signInResult:failed code=" + e.getStatusCode());
         }
     }
 
-    //parse
     private void loginUser(String username, String password) {
         ParseUser.logInInBackground(username, password, new LogInCallback() {
             @Override
@@ -134,7 +150,6 @@ public class LoginFragment extends Fragment {
         });
     }
 
-    //Launch MainActivity
     private void goToMainActivity() {
         Intent i = new Intent(getContext(), MainActivity.class);
         startActivity(i);
